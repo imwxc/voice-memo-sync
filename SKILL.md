@@ -201,6 +201,18 @@ memory/voice-memos/           # All data, searchable via memory_search
 
 ## Apple Notes Output Format / 输出格式
 
+The skill reads `USER.md`, `SOUL.md`, and `MEMORY.md` to provide **personalized analysis**:
+- Deep insights tailored to user's research/work focus
+- Connections to active projects and ongoing interests  
+- Actionable recommendations based on user's decision style
+- Critical thinking that challenges assumptions
+
+处理时会读取 `USER.md`、`SOUL.md` 和 `MEMORY.md` 提供**个性化分析**：
+- 结合用户研究/工作重点的深度洞察
+- 与活跃项目和持续关注领域的关联
+- 基于用户决策风格的行动建议
+- 挑战假设的批判性思考
+
 ```
 🎙️ [Auto-generated Title / 智能生成的标题]
 
@@ -217,12 +229,17 @@ memory/voice-memos/           # All data, searchable via memory_search
 • Point 2
 • Point 3
 
-💡 Analysis & Insights / 深度分析
-[Personalized analysis based on user context]
+💡 Deep Analysis & Reflection (For User) / 深度分析与反思
+[Personalized analysis connecting to user's:
+ - Current research directions (from MEMORY.md)
+ - Active projects and interests (from USER.md)
+ - Decision-making style and preferences
+ - Critical counter-arguments and blind spots]
 
 📋 Action Items / 行动建议
-☐ TODO 1 (synced to Reminders)
-☐ TODO 2
+☐ Research: [specific to user's academic work]
+☐ Business: [relevant to startup/investment focus]
+☐ Content: [ideas for courses/articles]
 
 🔗 Related Connections / 相关联系
 • Connection to [project/memory]
