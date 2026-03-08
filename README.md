@@ -1,12 +1,12 @@
-# Voice Memo Sync
+# Voice Memo Sync 🎙️
 
 [![OpenClaw Skill](https://img.shields.io/badge/OpenClaw-Skill-blue)](https://github.com/openclaw/openclaw)
 [![macOS](https://img.shields.io/badge/macOS-Only-lightgrey)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Intelligently sync, transcribe, and organize Apple Voice Memos with AI-powered analysis.**
+**Intelligently sync, transcribe, and organize voice memos, audio/video files, and URLs with AI-powered analysis.**
 
-Transform your voice recordings into structured, actionable notes — automatically synced to Apple Notes & Reminders.
+Transform your voice recordings, YouTube videos, and meeting transcripts into structured, actionable notes — automatically synced to Apple Notes & Reminders.
 
 [中文文档](README_CN.md)
 
@@ -14,6 +14,8 @@ Transform your voice recordings into structured, actionable notes — automatica
 
 - 🎙️ **Apple Native Transcription** — Extract built-in transcripts from Voice Memos (zero latency)
 - 🔄 **Whisper Fallback** — Local AI transcription for recordings without native text
+- 🎬 **YouTube/Bilibili Support** — Download and transcribe video content
+- 📄 **Multi-format Input** — Support .m4a, .mp3, .mp4, .txt, .md, .doc, .docx, .json, .csv
 - 🧠 **Smart Summarization** — LLM-powered analysis with personalized insights
 - 📝 **Apple Notes Sync** — Auto-create structured notes with #tags
 - ⏰ **Reminders Integration** — Extract TODOs and create reminders automatically
@@ -28,7 +30,10 @@ Transform your voice recordings into structured, actionable notes — automatica
 clawhub install ying-wen/voice-memo-sync
 
 # Or manually
-git clone https://github.com/ying-wen/voice-memo-sync.git ~/.openclaw/workspace/skills/voice-memo-sync
+cd ~/.openclaw/workspace/skills
+git clone https://github.com/ying-wen/voice-memo-sync.git
+cd voice-memo-sync
+./scripts/install.sh
 ```
 
 ### Dependencies
@@ -37,146 +42,175 @@ git clone https://github.com/ying-wen/voice-memo-sync.git ~/.openclaw/workspace/
 # Required
 brew install ffmpeg
 
-# Optional (for Whisper fallback)
-brew install openai-whisper
-
-# Optional (for Reminders integration)
-brew install steipete/tap/remindctl
+# Optional (enhanced features)
+brew install openai-whisper    # Local transcription
+brew install yt-dlp            # YouTube/Bilibili download
+brew install steipete/tap/remindctl   # Reminders integration
+brew install steipete/tap/summarize   # YouTube transcript extraction
 ```
 
-### Usage
+## 📖 Usage
 
-Just tell OpenClaw:
-
-```
-"同步下最新的录音"
-"Sync my latest voice memo"
-"整理一下刚才的会议录音"
-"I just finished a meeting, process the recording"
-```
-
-Or process specific files:
+Just tell your OpenClaw agent:
 
 ```
-"帮我整理这个录音" + [attach file]
-"Process this transcript: [paste text]"
-"Transcribe this podcast: https://..."
+"Sync my voice memos"
+"Process this recording: [file]"
+"Organize this video: [YouTube/Bilibili URL]"
+"Transcribe and summarize this audio"
 ```
 
-## 📋 Output Example
+Or use the scripts directly:
 
-```markdown
-🎙️ Weekly Team Standup
+```bash
+# Process any input
+./scripts/process.sh /path/to/audio.mp3
+./scripts/process.sh "https://www.youtube.com/watch?v=..."
+./scripts/process.sh /path/to/transcript.txt
 
-📅 2026-03-08 15:51 | ⏱️ 5:32 | 🏷️ #meeting #team #planning
-
-## 📌 Core Summary
-Discussion on Q2 roadmap priorities and resource allocation...
-
-## 🎯 Key Points
-• Prioritize Feature A for March release
-• Need 2 additional engineers for Project B
-• Customer feedback review scheduled for Friday
-
-## 💡 Insights & Reflection
-[Personalized analysis based on your context]
-
-## 📋 Action Items
-• [ ] Draft Feature A spec by Wednesday
-• [ ] Schedule hiring interviews
-• [ ] Prepare customer feedback summary
-
----
-📝 Original Transcript
-[Raw transcription in smaller text]
+# Sync iCloud recordings
+./scripts/sync-icloud-recordings.sh
 ```
 
-## ⚙️ Configuration
+## 📁 Supported Formats
 
-Create `~/.openclaw/workspace/config/voice-memo-sync.yaml`:
+| Type | Formats | Processing |
+|------|---------|------------|
+| Voice Memos | .qta, .m4a | Apple native → Whisper fallback |
+| Audio | .mp3, .wav, .aac, .flac | Whisper local transcription |
+| Video | .mp4, .mov, .mkv, .webm | ffmpeg extract → Whisper |
+| YouTube | URL | summarize CLI → yt-dlp fallback |
+| Bilibili | URL | yt-dlp download → Whisper |
+| Text | .txt, .md | Direct read |
+| Documents | .doc, .docx | textutil convert |
+| Structured | .json, .csv | Parse and extract |
+
+## 🔧 Configuration
+
+Edit `~/.openclaw/workspace/config/voice-memo-sync.yaml`:
 
 ```yaml
+sources:
+  voice_memos:
+    enabled: true
+  icloud:
+    enabled: true
+    paths:
+      - "~/Library/Mobile Documents/com~apple~CloudDocs/Recordings"
+
 transcription:
-  priority: ["apple", "whisper-local"]
+  priority: ["apple", "text", "summarize", "whisper-local"]
   whisper_model: "small"
-  language: "zh"
+  language: "auto"
 
 notes:
   folder: "Voice Memos"
-  
+  include_quotes: true
+  include_original: true
+
 reminders:
   enabled: true
   list: "Reminders"
 ```
 
-## 🔐 Privacy
+## 📝 Output Format
 
-- **Local by default**: All transcription and processing happens on your machine
-- **No data upload**: Your voice memos never leave your computer
-- **Optional APIs**: External services (OpenAI, Volcengine) only when explicitly configured
-- **No hardcoded keys**: All credentials read from environment variables
-
-## 🛠️ How It Works
+Notes are created with this structure:
 
 ```
-┌─────────────────┐
-│  Voice Memos    │
-│  (.qta/.m4a)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Extract Apple   │────▶│ Whisper Local   │
-│ Native Transcript│     │ (fallback)      │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         └───────────┬───────────┘
-                     ▼
-         ┌─────────────────┐
-         │  LLM Analysis   │
-         │  + User Context │
-         └────────┬────────┘
-                  │
-         ┌────────┴────────┐
-         ▼                 ▼
-┌─────────────────┐ ┌─────────────────┐
-│  Apple Notes    │ │   Reminders     │
-│  (structured)   │ │   (TODOs)       │
-└─────────────────┘ └─────────────────┘
+🎙️ [Auto-generated Title]
+
+📅 Date | ⏱️ Duration | 👤 Source
+🏷️ #tag1 #tag2 #tag3
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📌 Summary
+[One paragraph core summary]
+
+🎯 Key Points
+• Point 1
+• Point 2
+• Point 3
+
+💡 Analysis & Insights
+[Personalized analysis based on user context]
+
+📋 Action Items
+☐ TODO 1 (synced to Reminders)
+☐ TODO 2
+
+💬 Notable Quotes
+• "Quote 1"
+• "Quote 2"
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📝 Original Transcript
+[Full transcript text]
 ```
 
-## 📁 Files
+## 🔒 Privacy
+
+- All transcription runs locally by default
+- Apple native transcripts extracted from local files
+- Whisper runs entirely on your machine
+- No data sent to external servers unless you explicitly configure external APIs
+- All data stored in local `memory/voice-memos/` directory
+
+## 📂 Data Structure
 
 ```
-voice-memo-sync/
-├── SKILL.md                    # OpenClaw skill definition
-├── README.md                   # English documentation
-├── README_CN.md               # 中文文档
-├── LICENSE                     # MIT License
-├── scripts/
-│   ├── extract-apple-transcript.py  # Apple transcript extractor
-│   ├── voice-memo-processor.py      # Main processor
-│   └── create-apple-note.sh         # Apple Notes helper
-├── docs/
-│   └── ARCHITECTURE.md         # Technical details
-└── examples/
-    └── sample-output.md        # Example output
+memory/voice-memos/
+├── INDEX.md          # Processing records index
+├── sources/          # Original file metadata
+├── transcripts/      # Raw transcripts
+├── processed/        # LLM processed content
+└── synced/           # Sync records
 ```
 
-## 🤝 Contributing
+## 🛠️ Troubleshooting
 
-Contributions welcome! Please read our contributing guidelines first.
+### Whisper not found
+```bash
+brew install openai-whisper
+```
+
+### yt-dlp download fails
+```bash
+brew upgrade yt-dlp
+# Or use proxy
+export ALL_PROXY=http://127.0.0.1:7890
+```
+
+### Apple Notes folder not created
+```bash
+osascript -e 'tell application "Notes" to tell account "iCloud" to make new folder with properties {name:"Voice Memos"}'
+```
+
+## 📜 Changelog
+
+### v1.2.0 (2026-03-08)
+- Added unified processing script
+- Added YouTube/Bilibili support
+- Added .doc/.docx/.json/.csv support
+- Bilingual SKILL.md (English/Chinese)
+- Improved installation script
+
+### v1.0.0 (2026-03-08)
+- Initial release
+- Apple Voice Memos transcription
+- Apple Notes sync
+- Whisper fallback
 
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## 🤝 Contributing
 
-- [OpenClaw](https://github.com/openclaw/openclaw) — The AI agent platform
-- [OpenAI Whisper](https://github.com/openai/whisper) — Speech recognition
-- Apple Voice Memos — Native transcription
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ---
 
-Made with ❤️ by [Ying Wen](https://github.com/ying-wen)
+Made with ❤️ for the OpenClaw community

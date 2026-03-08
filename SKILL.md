@@ -1,314 +1,394 @@
 ---
 name: voice-memo-sync
 description: |
-  Sync, transcribe, and intelligently organize Apple Voice Memos and audio/video files.
-  Supports: Voice Memos app, iCloud directories, uploaded files, YouTube/Bilibili URLs.
-  同步、转录、智能整理Apple语音备忘录及音视频文件，支持多种输入源。
-version: 1.1.0
+  Sync, transcribe, and intelligently organize voice memos, audio/video files, and URLs.
+  同步、转录、智能整理语音备忘录、音视频文件和视频链接。
+version: 1.2.0
 author: Ying Wen
 homepage: https://github.com/ying-wen/voice-memo-sync
+license: MIT
 metadata:
   openclaw:
     emoji: "🎙️"
     os: ["darwin"]
     requires:
-      bins: ["ffprobe", "python3"]
-      optional_bins: ["whisper", "remindctl", "summarize"]
+      bins: ["ffmpeg", "python3"]
+      optional_bins: ["whisper", "yt-dlp", "remindctl", "summarize"]
     install:
+      - id: init
+        kind: script
+        command: "./scripts/install.sh"
+        label: "Initialize Voice Memo Sync"
       - id: ffmpeg
         kind: brew
         formula: ffmpeg
-        bins: ["ffprobe", "ffmpeg"]
+        bins: ["ffmpeg"]
         label: "Install FFmpeg (required)"
       - id: whisper
         kind: brew  
         formula: openai-whisper
         bins: ["whisper"]
-        label: "Install Whisper (optional fallback)"
-      - id: remindctl
+        label: "Install Whisper (optional)"
+      - id: yt-dlp
         kind: brew
-        formula: steipete/tap/remindctl
-        bins: ["remindctl"]
-        label: "Install remindctl (optional, for Reminders)"
-      - id: summarize
-        kind: brew
-        formula: steipete/tap/summarize
-        bins: ["summarize"]
-        label: "Install summarize (optional, for URLs)"
+        formula: yt-dlp
+        bins: ["yt-dlp"]
+        label: "Install yt-dlp (for video URLs)"
 ---
 
-# Voice Memo Sync
+# Voice Memo Sync 🎙️
 
-Intelligently sync and organize voice memos and audio/video with AI-powered analysis.
-
-## When to Use
-
-✅ **USE this skill when:**
-- User says "同步语音备忘录" / "sync voice memos"
-- User says "整理录音" / "process recording"  
-- User says "开完会了" / "会议结束" / "meeting done"
-- User shares a voice/video file (.m4a, .mp3, .wav, .qta, .mp4, .mov)
-- User shares a transcript text (NoteGPT export, etc.)
-- User shares a YouTube/Bilibili URL
-- User wants to sync from iCloud directory
-
-## Input Sources
-
-### 1. Apple Voice Memos (Default)
-```
-路径: ~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/
-格式: .qta (新录音), .m4a (旧录音)
-特点: 自动提取Apple原生转录
-```
-
-### 2. iCloud Directory (User Configurable)
-```yaml
-# 在 config/voice-memo-sync.yaml 中配置
-sources:
-  icloud:
-    enabled: true
-    paths:
-      - "~/Library/Mobile Documents/com~apple~CloudDocs/Recordings"
-      - "~/Library/Mobile Documents/com~apple~CloudDocs/会议录音"
-      - "~/Library/Mobile Documents/com~apple~CloudDocs/Downloads"
-    watch_patterns: ["*.m4a", "*.mp3", "*.mp4", "*.wav", "*.mov"]
-```
-
-### 3. Direct File Upload
-```
-用户: "帮我整理这个录音" + [附件]
-支持: .m4a, .mp3, .wav, .mp4, .mov, .qta
-```
-
-### 4. Transcript Text
-```
-用户: "整理这段会议记录: [粘贴文本]"
-用户: [发送NoteGPT导出的.txt文件]
-特点: 跳过转录，直接LLM整理
-```
-
-### 5. Video URLs
-```
-用户: "处理这个视频 https://youtube.com/..."
-用户: "整理这个B站视频 https://bilibili.com/video/..."
-工具: summarize CLI (需安装)
-```
-
-## Quick Commands
-
-### Sync Latest Voice Memo
-```
-用户: "同步下最新的录音"
-```
-
-### Sync from iCloud
-```
-用户: "同步iCloud里的录音"
-用户: "检查下会议录音文件夹有没有新文件"
-```
-
-### Process Specific File
-```
-用户: "处理 ~/Downloads/meeting.mp4"
-```
-
-### Process URL
-```
-用户: "整理这个视频 https://www.youtube.com/watch?v=..."
-```
-
-## Transcription Priority
-
-1. **Apple Native** (Voice Memos only): 从.qta/.m4a的meta atom提取
-2. **NoteGPT/Text**: 用户提供的转录文本
-3. **summarize CLI**: YouTube/Bilibili字幕提取
-4. **Whisper Local** (fallback): 本地运行，隐私安全
-5. **External API** (optional): 火山引擎/OpenAI Whisper API
-
-## Output Structure
-
-写入Apple Notes的内容结构：
-```
-🎙️ [智能生成的标题]
-📅 时间 | ⏱️ 时长 | 🏷️ #标签1 #标签2
-
-📌 核心摘要
-[一段话总结]
-
-🎯 关键要点
-• 要点1
-• 要点2
-
-💡 深度分析与反思
-[结合用户背景USER.md的个性化分析]
-
-📋 行动建议
-• TODO 1
-• TODO 2
-
-🔗 相关联系
-[与用户其他项目/记忆的关联]
-
-💬 金句摘录 (可选)
-• "引用1"
-• "引用2"
+Intelligent voice/video transcription and organization system.  
+智能语音/视频转录与整理系统。
 
 ---
-📝 原始转录
-[灰色小字，放最后]
+
+## Quick Start / 快速开始
+
+```bash
+# Run installation script / 运行安装脚本
+cd ~/.openclaw/workspace/skills/voice-memo-sync
+./scripts/install.sh
 ```
 
-## Configuration
+**What it does / 安装内容:**
+1. Creates data directory `memory/voice-memos/` / 创建数据目录
+2. Creates config file `config/voice-memo-sync.yaml` / 创建配置文件
+3. Creates Apple Notes folder "Voice Memos" / 创建 Apple Notes 文件夹
+4. Checks dependencies and prompts installation / 检查依赖并提示安装
 
-创建 `~/.openclaw/workspace/config/voice-memo-sync.yaml`：
+---
+
+## When to Use / 何时使用
+
+✅ **USE this skill when user:**
+- Sends voice/audio/video files / 发送语音/音频/视频文件
+- Sends YouTube/Bilibili URLs / 发送 YouTube/B站 链接
+- Sends transcript text files / 发送转录文本文件
+- Says "sync voice memos", "process recording", "organize this video"
+- 说「同步语音备忘录」「处理录音」「整理这个视频」
+
+❌ **DO NOT use when:**
+- User just wants to play audio/video / 用户只想播放音视频
+- User asks about music/podcasts without transcription needs / 询问音乐/播客但不需要转录
+
+---
+
+## Supported Formats / 支持格式
+
+| Type / 类型 | Formats / 格式 | Processing / 处理方式 |
+|-------------|----------------|----------------------|
+| Voice Memos | .qta, .m4a | Apple native → Whisper fallback |
+| Audio | .mp3, .wav, .aac, .flac | Whisper local transcription |
+| Video | .mp4, .mov, .mkv, .webm | ffmpeg extract → Whisper |
+| YouTube | URL | summarize CLI → yt-dlp fallback |
+| Bilibili | URL | yt-dlp download → Whisper |
+| Text | .txt, .md | Direct read, skip transcription |
+| Documents | .doc, .docx | textutil convert → process |
+| Structured | .json, .csv | Parse and extract text |
+| iCloud | Configured paths | Scheduled sync |
+
+---
+
+## Processing Pipeline / 处理流程
+
+```
+Input (File/URL/Text)
+        │
+        ▼
+┌─────────────────────────────────────┐
+│     1. Source Detection            │
+│     来源识别                        │
+│  Voice Memo / URL / File / Text    │
+└─────────────────┬───────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│     2. Save Source Metadata        │
+│     保存源信息                      │
+│  → memory/voice-memos/sources/     │
+└─────────────────┬───────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│     3. Transcription               │
+│     转录提取                        │
+│  Priority: Apple > Text > summarize│
+│           > Whisper-local > API    │
+└─────────────────┬───────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│     4. Save Raw Transcript         │
+│     保存原始转录                    │
+│  → memory/voice-memos/transcripts/ │
+└─────────────────┬───────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│     5. LLM Deep Processing         │
+│     LLM深度整理                     │
+│  • Read USER.md & MEMORY.md        │
+│  • Clean up spoken language        │
+│  • Extract key points & insights   │
+│  • Identify TODOs & connections    │
+└─────────────────┬───────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│     6. Save Processed Result       │
+│     保存处理结果                    │
+│  → memory/voice-memos/processed/   │
+└─────────────────┬───────────────────┘
+                  │
+          ┌───────┴───────┐
+          ▼               ▼
+┌─────────────────┐ ┌─────────────────┐
+│ 7a. Apple Notes │ │ 7b. Reminders  │
+│ Structured note │ │ Create TODOs   │
+│ with #hashtags  │ │ 创建提醒       │
+└────────┬────────┘ └────────┬───────┘
+         │                   │
+         └─────────┬─────────┘
+                   ▼
+┌─────────────────────────────────────┐
+│     8. Update Index                │
+│     更新索引                        │
+│  → memory/voice-memos/INDEX.md     │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Data Structure / 数据结构
+
+```
+memory/voice-memos/           # All data, searchable via memory_search
+├── INDEX.md                  # Processing records index / 处理记录索引
+├── sources/                  # Original file metadata / 原始文件元数据
+│   └── YYYY-MM-DD_xxx.json
+├── transcripts/              # Raw transcripts / 原始转录文本
+│   └── YYYY-MM-DD_source_title.md
+├── processed/                # LLM processed content / LLM处理后内容
+│   └── YYYY-MM-DD_source_title.md
+└── synced/                   # Sync records / 同步记录
+    └── YYYY-MM-DD_source_title.json
+```
+
+---
+
+## Apple Notes Output Format / 输出格式
+
+```
+🎙️ [Auto-generated Title / 智能生成的标题]
+
+📅 Date | ⏱️ Duration | 👤 Source
+🏷️ #tag1 #tag2 #tag3
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📌 Summary / 核心摘要
+[One paragraph summarizing the content]
+
+🎯 Key Points / 关键要点
+• Point 1
+• Point 2
+• Point 3
+
+💡 Analysis & Insights / 深度分析
+[Personalized analysis based on user context]
+
+📋 Action Items / 行动建议
+☐ TODO 1 (synced to Reminders)
+☐ TODO 2
+
+🔗 Related Connections / 相关联系
+• Connection to [project/memory]
+• Recommended reading/research
+
+💬 Notable Quotes / 金句摘录
+• "Quote 1"
+• "Quote 2"
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📝 Original Transcript / 原始转录
+[Full transcript text]
+```
+
+---
+
+## Configuration / 配置
+
+Location / 位置: `~/.openclaw/workspace/config/voice-memo-sync.yaml`
 
 ```yaml
-# 输入源配置
 sources:
-  # Apple Voice Memos (always enabled)
   voice_memos:
     enabled: true
-  
-  # iCloud目录监控
+    path: "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/"
   icloud:
     enabled: true
     paths:
       - "~/Library/Mobile Documents/com~apple~CloudDocs/Recordings"
-      - "~/Library/Mobile Documents/com~apple~CloudDocs/会议录音"
-    watch_patterns: ["*.m4a", "*.mp3", "*.mp4", "*.wav"]
-    
-  # 自定义本地目录
-  local:
-    enabled: false
-    paths:
-      - "~/Downloads"
-    watch_patterns: ["*.m4a", "*.mp3"]
+      - "~/Library/Mobile Documents/com~apple~CloudDocs/Meeting Recordings"
+    watch_patterns: ["*.m4a", "*.mp3", "*.mp4", "*.wav", "*.mov"]
 
-# 转录配置
 transcription:
-  priority: ["apple", "text", "summarize", "whisper-local", "whisper-api"]
-  whisper_model: "small"
-  language: "zh"
+  # Priority order / 优先级顺序
+  priority: ["apple", "text", "summarize", "whisper-local"]
+  whisper_model: "small"  # tiny/small/medium/large
+  language: "auto"        # auto/zh/en/ja/ko/...
 
-# Apple Notes配置
 notes:
-  folder: "语音备忘录"
-  include_quotes: true      # 是否包含金句摘录
-  include_original: true    # 是否包含原始转录
+  folder: "Voice Memos"   # Apple Notes folder name
+  include_quotes: true
+  include_original: true
 
-# Reminders配置  
 reminders:
   enabled: true
   list: "Reminders"
   auto_create: true
-
-# 用户上下文 (自动读取)
-context:
-  user_profile: "USER.md"
-  memory: "MEMORY.md"
-  soul: "SOUL.md"
 ```
 
-## Processing Flow
+---
 
+## Scripts / 脚本
+
+| Script | Purpose / 用途 | Usage / 用法 |
+|--------|----------------|--------------|
+| `install.sh` | Initialize setup | `./install.sh` |
+| `process.sh` | Unified processing | `./process.sh <input>` |
+| `extract-apple-transcript.py` | Extract Apple native transcription | `python3 extract-apple-transcript.py <file>` |
+| `create-apple-note.sh` | Create Apple Notes | `./create-apple-note.sh <title> <content>` |
+| `sync-icloud-recordings.sh` | Sync iCloud directory | `./sync-icloud-recordings.sh` |
+
+---
+
+## Agent Processing Guide / Agent处理指南
+
+When user sends audio/video or URL, follow these steps:  
+当用户发送音视频或URL时，按以下步骤处理：
+
+### Step 1: Detect Input Type / 识别输入类型
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    INPUT SOURCES                        │
-├─────────────────────────────────────────────────────────┤
-│  Voice Memos │ iCloud Dir │ Upload │ Text │ URL        │
-└───────┬──────┴─────┬──────┴───┬────┴──┬───┴──┬─────────┘
-        │            │          │       │      │
-        ▼            ▼          ▼       ▼      ▼
-┌─────────────────────────────────────────────────────────┐
-│                  TRANSCRIPTION LAYER                    │
-├─────────────────────────────────────────────────────────┤
-│ Apple Native │ Direct Text │ summarize │ Whisper       │
-└───────┬──────┴──────┬──────┴─────┬─────┴───┬───────────┘
-        │             │            │         │
-        └─────────────┴────────────┴─────────┘
-                        │
-                        ▼
-        ┌─────────────────────────────┐
-        │   LLM INTELLIGENT ANALYSIS  │
-        │  ─────────────────────────  │
-        │  • Read USER.md (背景)      │
-        │  • Read MEMORY.md (记忆)    │
-        │  • Reconstruct garbled text │
-        │  • Extract key points       │
-        │  • Generate insights        │
-        │  • Identify TODOs           │
-        │  • Find connections         │
-        └──────────────┬──────────────┘
-                       │
-          ┌────────────┴────────────┐
-          ▼                         ▼
-┌─────────────────┐       ┌─────────────────┐
-│   Apple Notes   │       │    Reminders    │
-│  (Structured)   │       │    (TODOs)      │
-│  + #tags        │       │                 │
-└─────────────────┘       └─────────────────┘
+YouTube URL      → summarize extract
+Bilibili URL     → yt-dlp download + whisper
+.qta/.m4a        → Apple transcript extraction
+Other audio/video → whisper transcription
+.txt/.md file    → direct read
+.doc/.docx       → textutil convert
 ```
 
-## Privacy & Security
-
-⚠️ **隐私保护设计:**
-- 所有转录默认在本地完成
-- 外部API需用户明确配置
-- 不存储任何API密钥在代码中
-- 用户记忆文件只在本地读取
-- iCloud路径仅访问用户指定目录
-
-## Examples
-
-### Example 1: Sync iCloud Recordings
-```
-用户: "检查下iCloud会议录音文件夹"
-
-Agent动作:
-1. 读取config获取iCloud路径
-2. 扫描 ~/Library/Mobile Documents/com~apple~CloudDocs/会议录音/
-3. 找到新文件 meeting-2026-03-08.m4a
-4. 用Whisper转录
-5. LLM整理 + 写入Notes + 创建Reminders
+### Step 2: Save Source Info / 保存源信息
+```bash
+# Record to memory/voice-memos/sources/
+echo '{"input":"...", "type":"...", "date":"YYYY-MM-DD"}' > sources/xxx.json
 ```
 
-### Example 2: Process YouTube Video
-```
-用户: "整理下这个视频 https://youtube.com/watch?v=xxx"
-
-Agent动作:
-1. 调用 summarize "URL" --youtube auto --extract-only
-2. 获取字幕/转录
-3. LLM深度整理（结合USER.md背景）
-4. 写入Apple Notes（带#标签）
-5. 提取TODO写入Reminders
+### Step 3: Get/Save Transcript / 获取保存转录
+```bash
+# Save to memory/voice-memos/transcripts/YYYY-MM-DD_source_title.md
+# Include: source info + full raw transcript
 ```
 
-### Example 3: Process NoteGPT Export
+### Step 4: LLM Deep Processing / LLM深度整理
 ```
-用户: [发送 NoteGPT_xxx.txt 文件]
-用户: "整理下这个转录"
-
-Agent动作:
-1. 读取txt文件内容
-2. 跳过转录步骤
-3. LLM深度整理
-4. 写入Notes + Reminders
+Read USER.md and MEMORY.md, combining user context:
+- Clean up spoken expressions / 整理口语表达
+- Fix obvious typos / 修正明显错字
+- Extract key points / 提取关键要点
+- Generate personalized insights / 生成个性化洞察
+- Identify TODOs and connections / 识别TODO和关联
 ```
 
-## Scripts
+### Step 5: Save Processed Result / 保存处理结果
+```bash
+# Save to memory/voice-memos/processed/YYYY-MM-DD_source_title.md
+```
 
-| 脚本 | 用途 |
-|------|------|
-| `scripts/extract-apple-transcript.py` | 提取Apple原生转录 |
-| `scripts/sync-icloud-recordings.sh` | 同步iCloud目录 |
-| `scripts/create-apple-note.sh` | 创建Apple Notes |
+### Step 6: Sync to Apple Notes / 同步到Apple Notes
+```bash
+osascript << 'AS'
+tell application "Notes"
+    tell account "iCloud"
+        tell folder "Voice Memos"
+            make new note with properties {name:"Title", body:"HTML content"}
+        end tell
+    end tell
+end tell
+AS
+```
 
-## Changelog
+### Step 7: Create Reminders / 创建提醒
+```bash
+remindctl add --title "TODO" --list "Reminders" --due "YYYY-MM-DD"
+```
+
+### Step 8: Update INDEX.md / 更新索引
+```bash
+# Append record to memory/voice-memos/INDEX.md
+```
+
+---
+
+## Privacy / 隐私说明
+
+⚠️ **Privacy-First Design:**
+- All transcription runs locally by default / 所有转录默认在本地完成
+- Apple native transcripts extracted from local files / Apple原生转录从本地文件提取
+- Whisper runs locally / Whisper在本地运行
+- No data sent to external servers (unless user explicitly configures external API)
+- User data stored only in local memory directory
+
+---
+
+## Troubleshooting / 故障排除
+
+### Whisper not found
+```bash
+brew install openai-whisper
+```
+
+### yt-dlp download fails
+```bash
+# Update yt-dlp
+brew upgrade yt-dlp
+
+# Or use proxy
+export ALL_PROXY=http://127.0.0.1:7890
+```
+
+### Apple Notes folder not created
+```bash
+# Manually create via AppleScript
+osascript -e 'tell application "Notes" to tell account "iCloud" to make new folder with properties {name:"Voice Memos"}'
+```
+
+### Transcription quality issues
+```bash
+# Use larger model for better accuracy
+# Edit config: whisper_model: "medium" or "large"
+```
+
+---
+
+## Changelog / 更新日志
+
+### v1.2.0 (2026-03-08)
+- Added unified processing script process.sh / 新增统一处理脚本
+- Added installation script install.sh / 新增安装脚本
+- Unified data storage to memory/voice-memos/ / 统一数据存储
+- Added .doc/.docx/.json/.csv support / 新增文档格式支持
+- Bilingual SKILL.md / 中英双语SKILL.md
+- Improved INDEX.md auto-update / 完善索引自动更新
 
 ### v1.1.0 (2026-03-08)
-- 新增iCloud目录同步支持
-- 新增YouTube/Bilibili URL处理
-- 新增NoteGPT转录文本处理
-- 优化LLM整理输出结构
-- 增加金句摘录功能
+- Added iCloud directory sync / 新增iCloud目录同步
+- Added YouTube/Bilibili support / 新增YouTube/B站支持
+- Added text file processing / 新增文本文件处理
+
+### v1.0.0 (2026-03-08)
+- Initial release / 初始版本
+- Apple Voice Memos transcription / Apple语音备忘录转录
+- Apple Notes sync / Apple Notes同步

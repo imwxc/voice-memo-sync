@@ -8,7 +8,7 @@ This is an example of the structured note created from a voice memo.
 
 📅 **时间:** 2026-03-08 15:51  
 ⏱️ **时长:** 1分59秒  
-📍 **地点:** 延安西路云九酒店  
+📍 **地点:** 延安西路
 🏷️ **标签:** #多Agent #系统设计 #AI工具 #协作 #任务管理
 
 ---
@@ -53,7 +53,7 @@ This is an example of the structured note created from a voice memo.
 ## 🔗 相关联系
 
 - **AGENTS.md**中的7个专业Agent架构正是主Agent→子Agent模式
-- **NSFC 2026项目**的持续强化学习可能涉及动态任务分配
+- **项目**的持续强化学习可能涉及动态任务分配
 - 可参考Anthropic的**Claude Opus多Agent实验**（16个Agent写C编译器）
 
 ---
