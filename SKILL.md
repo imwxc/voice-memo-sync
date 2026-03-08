@@ -13,7 +13,7 @@ metadata:
     os: ["darwin"]
     requires:
       bins: ["ffmpeg", "python3"]
-      optional_bins: ["whisper", "yt-dlp", "remindctl", "summarize"]
+      optional_bins: ["whisper-cli", "whisper", "yt-dlp", "remindctl", "summarize"]
     install:
       - id: init
         kind: script
@@ -24,11 +24,16 @@ metadata:
         formula: ffmpeg
         bins: ["ffmpeg"]
         label: "Install FFmpeg (required)"
+      - id: whisper-cpp
+        kind: brew
+        formula: whisper-cpp
+        bins: ["whisper-cli"]
+        label: "Install whisper-cpp (Metal GPU - recommended)"
       - id: whisper
         kind: brew  
         formula: openai-whisper
         bins: ["whisper"]
-        label: "Install Whisper (optional)"
+        label: "Install Whisper (CPU fallback)"
       - id: yt-dlp
         kind: brew
         formula: yt-dlp
