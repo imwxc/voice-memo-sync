@@ -76,6 +76,23 @@ cd ~/.openclaw/workspace/skills/voice-memo-sync
 
 ## Supported Formats / 支持格式
 
+### ⚡ Metal GPU Acceleration (NEW)
+
+On Apple Silicon, `whisper-cpp` provides 15-20x faster transcription:
+
+| Audio | CPU (openai-whisper) | Metal GPU (whisper-cpp) |
+|-------|---------------------|------------------------|
+| 5 min | ~5 min | ~20 sec |
+| 30 min | ~30 min | ~2 min |
+| 60 min | ~60 min | ~4 min |
+
+```bash
+# Install for Metal acceleration (recommended)
+brew install whisper-cpp
+```
+
+The skill auto-detects and uses Metal when available.
+
 | Type / 类型 | Formats / 格式 | Processing / 处理方式 |
 |-------------|----------------|----------------------|
 | Voice Memos | .qta, .m4a | Apple native → Whisper fallback |

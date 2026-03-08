@@ -125,8 +125,12 @@ echo "🔧 Checking dependencies..."
 for dep in ffmpeg python3; do
     command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ❌ $dep (required)"
 done
-for dep in whisper yt-dlp remindctl summarize; do
-    command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ⚠️  $dep (optional)"
+for dep in whisper-cpp whisper yt-dlp remindctl summarize; do
+    if [ "$dep" = "whisper-cpp" ]; then
+        command -v "$dep" &>/dev/null && echo "  ✅ $dep (Metal GPU - recommended)" || echo "  ⚠️  $dep (Metal GPU - brew install whisper-cpp)"
+    else
+        command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ⚠️  $dep (optional)"
+    fi
 done
 
 # 6. Create Apple Notes folder

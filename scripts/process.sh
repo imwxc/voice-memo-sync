@@ -62,17 +62,45 @@ extract_apple_transcript() {
     python3 "$SCRIPT_DIR/extract-apple-transcript.py" "$file" 2>/dev/null
 }
 
-# Whisper转录
+# Whisper转录 (优先使用Metal加速的whisper-cpp)
 whisper_transcribe() {
     local file="$1"
     local output_dir="$DATA_DIR/transcripts"
+    local lang="${2:-auto}"
+    local basename=$(basename "${file%.*}")
     
-    if command -v whisper &> /dev/null; then
-        whisper "$file" --model small --language Chinese \
+    # 优先使用whisper-cpp (Metal GPU加速, 15-20x faster)
+    if command -v whisper-cpp &> /dev/null || command -v whisper-cli &> /dev/null; then
+        local whisper_cmd=$(command -v whisper-cpp || command -v whisper-cli)
+        local model_path="$HOME/.cache/whisper-cpp/ggml-small.bin"
+        
+        # 检查模型文件
+        if [ ! -f "$model_path" ]; then
+            log "下载whisper-cpp模型..."
+            mkdir -p "$HOME/.cache/whisper-cpp"
+            curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin" \
+                -o "$model_path" 2>/dev/null
+        fi
+        
+        # whisper-cpp需要wav格式
+        local wav_file="/tmp/whisper_$$_${basename}.wav"
+        log "转换为WAV格式 (Metal加速)..."
+        ffmpeg -i "$file" -ar 16000 -ac 1 -c:a pcm_s16le "$wav_file" -y 2>/dev/null
+        
+        log "使用Metal GPU加速转录..."
+        "$whisper_cmd" -m "$model_path" -l "$lang" -otxt -of "$output_dir/$basename" "$wav_file" 2>/dev/null
+        
+        rm -f "$wav_file"
+        cat "$output_dir/${basename}.txt" 2>/dev/null
+        
+    # 回退到openai-whisper (CPU)
+    elif command -v whisper &> /dev/null; then
+        warn "使用CPU转录 (较慢)，建议安装whisper-cpp: brew install whisper-cpp"
+        whisper "$file" --model small --language "$lang" \
             --output_dir "$output_dir" --output_format txt 2>/dev/null
-        cat "$output_dir/$(basename "${file%.*}").txt"
+        cat "$output_dir/${basename}.txt"
     else
-        error "Whisper未安装，请运行: brew install openai-whisper"
+        error "Whisper未安装，请运行: brew install whisper-cpp (推荐) 或 brew install openai-whisper"
     fi
 }
 
