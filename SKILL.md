@@ -3,7 +3,7 @@ name: voice-memo-sync
 description: |
   Sync, transcribe, and intelligently organize voice memos, audio/video files, and URLs.
   同步、转录、智能整理语音备忘录、音视频文件和视频链接。
-version: 1.5.0
+version: 1.6.0
 author: Ying Wen
 homepage: https://github.com/ying-wen/voice-memo-sync
 license: MIT
@@ -100,7 +100,7 @@ The skill auto-detects and uses Metal when available.
 
 | Type / 类型 | Formats / 格式 | Processing / 处理方式 |
 |-------------|----------------|----------------------|
-| Voice Memos | .qta, .m4a | Apple native → Whisper fallback |
+| Voice Memos | .qta, .m4a | Apple native (QTA metadata) → Whisper fallback |
 | Audio | .mp3, .wav, .aac, .flac | Whisper local transcription |
 | Video | .mp4, .mov, .mkv, .webm | ffmpeg extract → Whisper |
 | YouTube | URL | summarize CLI → yt-dlp fallback |
@@ -257,7 +257,69 @@ The skill reads `USER.md`, `SOUL.md`, and `MEMORY.md` to provide **personalized 
 
 ---
 
-## Configuration / 配置
+## QTA File Format / QTA文件格式 (Technical Reference)
+
+Apple Voice Memos on iOS/macOS 14+ uses `.qta` (QuickTime Audio) files that embed native transcription directly in the file metadata.
+
+### Structure
+```
+QTA File
+├── ftyp (file type marker: "qt  ")
+├── wide (extended marker)
+├── mdat (audio data, typically 90%+ of file size)
+└── moov (metadata container)
+    ├── mvhd (movie header)
+    └── trak (one or more tracks)
+        ├── tkhd (track header)
+        ├── mdia (media data)
+        └── meta (metadata - TRANSCRIPTION HERE!)
+            ├── hdlr (handler: "mdta")
+            ├── keys (key list: "com.apple.VoiceMemos.tsrp")
+            └── ilst (data list)
+                └── data (JSON transcription payload)
+```
+
+### Transcription JSON Format
+```json
+{
+  "locale": {"identifier": "zh-Hans_GB", "current": 1},
+  "attributedString": {
+    "runs": ["字",0,"符",1,"转",2,"录",3,...],
+    "attributeTable": [
+      {"timeRange": [0.0, 0.5]},
+      {"timeRange": [0.5, 0.8]},
+      ...
+    ]
+  }
+}
+```
+
+**Key Points:**
+- `runs` array alternates: `[text, index, text, index, ...]`
+- `attributeTable` provides timestamps for each character
+- JSON is embedded raw in the `ilst/data` atom
+- Use `extract-apple-transcript.py` to reliably extract
+
+### Extraction Script
+```bash
+# Extract plain text
+python3 scripts/extract-apple-transcript.py recording.qta
+
+# Extract with metadata (JSON output)
+python3 scripts/extract-apple-transcript.py recording.qta --json
+
+# Extract with timestamps
+python3 scripts/extract-apple-transcript.py recording.qta --json --with-timestamps
+```
+
+### Common Issues
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "未找到转录数据" | Recording still processing | Wait 1-2 min, or use Whisper |
+| "转录标记存在但数据不完整" | Partial transcription | Use Whisper fallback |
+| JSON parse error | Corrupted file | Try Whisper transcription |
+
+---
 
 Location / 位置: `~/.openclaw/workspace/config/voice-memo-sync.yaml`
 
@@ -484,6 +546,12 @@ osascript -e 'tell application "Notes" to tell account "iCloud" to make new fold
 ---
 
 ## Changelog / 更新日志
+
+### v1.6.0 (2026-03-09)
+- **QTA Format Documentation**: Added detailed technical reference for Apple's QTA file format.
+- **Enhanced extract-apple-transcript.py v1.1**: Improved JSON boundary detection, better error diagnostics, timestamp extraction support.
+- Added `--with-timestamps` option for detailed time-aligned output.
+- Better handling of large files (>100MB).
 
 ### v1.5.0 (2026-03-09)
 - Added Mode C: Lecture/Talk (single speaker, argument structure extraction).
