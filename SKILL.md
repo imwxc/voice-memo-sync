@@ -3,7 +3,7 @@ name: voice-memo-sync
 description: |
   Sync, transcribe, and intelligently organize voice memos, audio/video files, and URLs.
   同步、转录、智能整理语音备忘录、音视频文件和视频链接。
-version: 1.6.0
+version: 1.6.1
 author: Ying Wen
 homepage: https://github.com/ying-wen/voice-memo-sync
 license: MIT
@@ -477,20 +477,54 @@ Read USER.md and MEMORY.md, combining user context.
 # Save to memory/voice-memos/processed/YYYY-MM-DD_source_title.md
 ```
 
-### Step 6: Sync to Apple Notes / 同步到Apple Notes
+### Step 6: Sync to Apple Notes (MANDATORY) / 同步到Apple Notes（必须执行）
+
+⚠️ **CRITICAL: This step is MANDATORY. Never skip it.**  
+⚠️ **关键：此步骤必须执行，不可跳过。**
+
+⚠️ **Apple Notes requires HTML format, NOT Markdown!**  
+⚠️ **Apple Notes 需要 HTML 格式，不能直接用 Markdown！**
+
+**Correct workflow / 正确流程:**
 ```bash
-# For Mode B (Deep Meeting), attach the FULL processed MD content (preserving density).
-# If content is too long for Apple Notes, include the Executive Summary + Key Decisions + Link to local MD file.
-osascript << 'AS'
+# 1. Convert Markdown to HTML using pandoc (REQUIRED)
+pandoc /path/to/processed.md -f markdown -t html -o /tmp/note-content.html
+
+# 2. Create note with HTML content via AppleScript
+osascript <<'EOF'
+set htmlContent to do shell script "cat /tmp/note-content.html"
+set noteTitle to "🎙️ Note Title"
+
 tell application "Notes"
-    tell account "iCloud"
-        tell folder "Voice Memos"
-            make new note with properties {name:"Title", body:"HTML content"}
-        end tell
+    set folderName to "Voice Memos"
+    set targetFolder to missing value
+    
+    repeat with f in folders
+        if name of f is folderName then
+            set targetFolder to f
+            exit repeat
+        end if
+    end repeat
+    
+    if targetFolder is missing value then
+        make new folder with properties {name:folderName}
+        delay 1
+        set targetFolder to folder folderName
+    end if
+    
+    tell targetFolder
+        make new note with properties {name:noteTitle, body:htmlContent}
     end tell
 end tell
-AS
+EOF
 ```
+
+**Common mistakes to avoid / 常见错误:**
+- ❌ Writing raw Markdown to Apple Notes → 乱码/格式错误
+- ❌ Using `memo notes -a` interactively → 无法自动化
+- ❌ Skipping this step entirely → 其他设备看不到
+- ✅ Always convert MD → HTML via pandoc first
+- ✅ Always verify the note was created successfully
 
 ### Step 7: Create Reminders / 创建提醒
 ```bash
@@ -546,6 +580,12 @@ osascript -e 'tell application "Notes" to tell account "iCloud" to make new fold
 ---
 
 ## Changelog / 更新日志
+
+### v1.6.1 (2026-03-09)
+- **CRITICAL FIX**: Apple Notes sync step marked as MANDATORY (不可跳过).
+- **FORMAT FIX**: Explicit requirement to convert Markdown → HTML via pandoc before syncing.
+- Added complete AppleScript template with folder creation.
+- Common mistakes checklist to prevent format issues.
 
 ### v1.6.0 (2026-03-09)
 - **QTA Format Documentation**: Added detailed technical reference for Apple's QTA file format.
