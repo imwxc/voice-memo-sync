@@ -1,6 +1,6 @@
 #!/bin/bash
 # Voice Memo Sync - 统一处理脚本
-# Usage: ./process.sh <input> [--type voice|url|text|file]
+# Usage: ./process.sh <input> [--type voice|url|text|file] [--diarize]
 #
 # 支持输入:
 #   - Voice Memos路径 (.qta/.m4a)
@@ -11,13 +11,18 @@
 
 set -e
 
-WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
-DATA_DIR="$WORKSPACE/memory/voice-memos"
+WORKSPACE="${VMS_WORKSPACE:-$HOME/.voice-memo-sync}"
+DATA_DIR="$WORKSPACE/data/voice-memos"
+VMS_OUTPUT_DIR="${VMS_OUTPUT_DIR:-$HOME/Documents}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TODAY=$(date +%Y-%m-%d)
 
 INPUT="$1"
 TYPE="${2:---auto}"
+DIARIZE="${3:---no-diarize}"
+FUNASR_ENV="${FUNASR_ENV:-${FUNASR_HOME:-$HOME/.funasr}/venv}"
+[ -d "$FUNASR_ENV" ] || FUNASR_ENV="/tmp/funasr-env"
+FUNASR_PYTHON="$FUNASR_ENV/bin/python3"
 
 # 颜色
 RED='\033[0;31m'
@@ -37,8 +42,10 @@ detect_type() {
         echo "youtube"
     elif [[ "$input" =~ ^https?://(www\.)?bilibili\.com ]]; then
         echo "bilibili"
-    elif [[ "$input" =~ \.(qta|m4a)$ ]]; then
+    elif [[ "$input" =~ \.qta$ ]]; then
         echo "voice_memo"
+    elif [[ "$input" =~ \.m4a$ ]]; then
+        echo "audio"
     elif [[ "$input" =~ \.(mp3|wav|aac|flac)$ ]]; then
         echo "audio"
     elif [[ "$input" =~ \.(mp4|mov|mkv|webm)$ ]]; then
@@ -62,46 +69,19 @@ extract_apple_transcript() {
     python3 "$SCRIPT_DIR/extract-apple-transcript.py" "$file" 2>/dev/null
 }
 
-# Whisper转录 (优先使用Metal加速的whisper-cpp)
-whisper_transcribe() {
+funasr_transcribe() {
     local file="$1"
-    local output_dir="$DATA_DIR/transcripts"
-    local lang="${2:-auto}"
+    local output_dir="$2"
+    local diarize="${3:-false}"
     local basename=$(basename "${file%.*}")
-    
-    # 优先使用whisper-cpp (Metal GPU加速, 15-20x faster)
-    if command -v whisper-cpp &> /dev/null || command -v whisper-cli &> /dev/null; then
-        local whisper_cmd=$(command -v whisper-cpp || command -v whisper-cli)
-        local model_path="$HOME/.cache/whisper-cpp/ggml-small.bin"
-        
-        # 检查模型文件
-        if [ ! -f "$model_path" ]; then
-            log "下载whisper-cpp模型..."
-            mkdir -p "$HOME/.cache/whisper-cpp"
-            curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin" \
-                -o "$model_path" 2>/dev/null
-        fi
-        
-        # whisper-cpp需要wav格式
-        local wav_file="/tmp/whisper_$$_${basename}.wav"
-        log "转换为WAV格式 (Metal加速)..."
-        ffmpeg -i "$file" -ar 16000 -ac 1 -c:a pcm_s16le "$wav_file" -y 2>/dev/null
-        
-        log "使用Metal GPU加速转录..."
-        "$whisper_cmd" -m "$model_path" -l "$lang" -otxt -of "$output_dir/$basename" "$wav_file" 2>/dev/null
-        
-        rm -f "$wav_file"
-        cat "$output_dir/${basename}.txt" 2>/dev/null
-        
-    # 回退到openai-whisper (CPU)
-    elif command -v whisper &> /dev/null; then
-        warn "使用CPU转录 (较慢)，建议安装whisper-cpp: brew install whisper-cpp"
-        whisper "$file" --model small --language "$lang" \
-            --output_dir "$output_dir" --output_format txt 2>/dev/null
-        cat "$output_dir/${basename}.txt"
-    else
-        error "Whisper未安装，请运行: brew install whisper-cpp (推荐) 或 brew install openai-whisper"
+    local args=("--input" "$file" "--output-dir" "$output_dir")
+    [ "$diarize" = "true" ] && args+=("--diarize")
+
+    if [ ! -x "$FUNASR_PYTHON" ]; then
+        error "FunASR 未安装。请先运行安装脚本设置 Python 环境。"
     fi
+
+    "$FUNASR_PYTHON" "$SCRIPT_DIR/funasr_transcribe.py" "${args[@]}"
 }
 
 # 处理YouTube
@@ -117,7 +97,7 @@ process_youtube() {
         log "summarize未安装，使用yt-dlp下载音频..."
         local audio_file="/tmp/yt_audio_$$.mp3"
         yt-dlp -x --audio-format mp3 -o "$audio_file" "$url" --no-playlist
-        whisper_transcribe "$audio_file"
+        funasr_transcribe "$audio_file" "$DATA_DIR/transcripts" "$DIARIZE"
         rm -f "$audio_file"
     fi
 }
@@ -132,7 +112,7 @@ process_bilibili() {
     
     if [ -f "$audio_file" ]; then
         log "音频下载完成，开始转录..."
-        whisper_transcribe "$audio_file"
+        funasr_transcribe "$audio_file" "$DATA_DIR/transcripts" "$DIARIZE"
         rm -f "$audio_file"
     else
         error "B站音频下载失败"
@@ -154,8 +134,8 @@ process_voice_memo() {
         echo "$apple_transcript" > "$transcript_file"
         cat "$transcript_file"
     else
-        log "无Apple转录，使用Whisper..."
-        whisper_transcribe "$file" > "$transcript_file"
+        log "无Apple转录，使用FunASR..."
+        funasr_transcribe "$file" "$DATA_DIR/transcripts" "$DIARIZE" > "$transcript_file"
         cat "$transcript_file"
     fi
 }
@@ -163,7 +143,7 @@ process_voice_memo() {
 # 处理普通音频
 process_audio() {
     local file="$1"
-    whisper_transcribe "$file"
+    funasr_transcribe "$file" "$DATA_DIR/transcripts" "$DIARIZE"
 }
 
 # 处理视频
@@ -173,7 +153,7 @@ process_video() {
     
     log "提取视频音频..."
     ffmpeg -i "$file" -vn -acodec mp3 -ab 128k "$audio_file" -y 2>/dev/null
-    whisper_transcribe "$audio_file"
+    funasr_transcribe "$audio_file" "$DATA_DIR/transcripts" "$DIARIZE"
     rm -f "$audio_file"
 }
 

@@ -6,15 +6,19 @@
 
 set -e
 
-CONFIG_FILE="${HOME}/.openclaw/workspace/config/voice-memo-sync.yaml"
-OUTPUT_DIR="${HOME}/.openclaw/workspace/memory/voice-memos"
-PROCESSED_LOG="${OUTPUT_DIR}/.processed_files.log"
+WORKSPACE="${VMS_WORKSPACE:-$HOME/.voice-memo-sync}"
+DATA_DIR="$WORKSPACE/data/voice-memos"
+CONFIG_FILE="$WORKSPACE/config/voice-memo-sync.yaml"
+PROCESSED_LOG="${DATA_DIR}/.processed_files.log"
 
 # 默认iCloud路径
 DEFAULT_ICLOUD_BASE="${HOME}/Library/Mobile Documents/com~apple~CloudDocs"
 
+# 系统语音备忘录路径（需要 Full Disk Access）
+SYSTEM_VOICE_MEMOS_DIR="${HOME}/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings"
+
 # 创建输出目录
-mkdir -p "${OUTPUT_DIR}/icloud"
+mkdir -p "${DATA_DIR}/icloud"
 touch "${PROCESSED_LOG}"
 
 echo "=== [$(date)] 开始同步iCloud录音 ==="
@@ -46,7 +50,7 @@ scan_directory() {
             ((found++))
             
             # 复制到工作目录
-            cp "$file" "${OUTPUT_DIR}/icloud/"
+            cp "$file" "${DATA_DIR}/icloud/"
             
             # 记录已处理
             echo "$file_hash|$file|$(date)" >> "$PROCESSED_LOG"
@@ -57,7 +61,10 @@ scan_directory() {
     echo "[完成] 发现 $found 个新文件"
 }
 
-# 扫描默认路径
+# 扫描系统语音备忘录目录
+scan_directory "${SYSTEM_VOICE_MEMOS_DIR}"
+
+# 扫描iCloud Drive路径
 scan_directory "${DEFAULT_ICLOUD_BASE}/Recordings"
 scan_directory "${DEFAULT_ICLOUD_BASE}/会议录音"
 scan_directory "${DEFAULT_ICLOUD_BASE}/Downloads"
@@ -73,4 +80,4 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 echo "=== 同步完成 ==="
-echo "新文件保存在: ${OUTPUT_DIR}/icloud/"
+echo "新文件保存在: ${DATA_DIR}/icloud/"

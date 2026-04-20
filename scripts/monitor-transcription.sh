@@ -5,8 +5,8 @@
 
 set -e
 
-WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
-DATA_DIR="$WORKSPACE/memory/voice-memos"
+WORKSPACE="${VMS_WORKSPACE:-$HOME/.voice-memo-sync}"
+DATA_DIR="$WORKSPACE/data/voice-memos"
 LOG_DIR="$DATA_DIR/logs"
 TODAY=$(date +%Y-%m-%d)
 

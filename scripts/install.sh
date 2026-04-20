@@ -4,11 +4,9 @@
 
 set -e
 
-WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
-SKILL_DIR="$WORKSPACE/skills/voice-memo-sync"
-DATA_DIR="$WORKSPACE/memory/voice-memos"
+WORKSPACE="${VMS_WORKSPACE:-$HOME/.voice-memo-sync}"
+DATA_DIR="$WORKSPACE/data/voice-memos"
 CONFIG_DIR="$WORKSPACE/config"
-HEARTBEAT_FILE="$WORKSPACE/HEARTBEAT.md"
 
 # Parse arguments
 WITH_HEARTBEAT=false
@@ -18,59 +16,14 @@ for arg in "$@"; do
     esac
 done
 
-# Function: Add heartbeat task
-add_heartbeat_task() {
-    local TASK_MARKER="# Voice Memo Sync Auto-Sync"
-    
-    if [ -f "$HEARTBEAT_FILE" ] && grep -q "$TASK_MARKER" "$HEARTBEAT_FILE"; then
-        echo "  ℹ️  Heartbeat task already configured"
-        return
-    fi
-    
-    echo "  Adding task to HEARTBEAT.md..."
-    
-    cat >> "$HEARTBEAT_FILE" << 'HEARTBEAT'
-
-# ============================================
-# Voice Memo Sync Auto-Sync
-# ============================================
-
-Task: Voice Memo Daily Sync
-- Time: 08:00 daily
-- Action: Sync and process new voice memos
-- Steps:
-  1. Scan Voice Memos directory for new .qta/.m4a files
-  2. Extract Apple native transcripts
-  3. Process with LLM (summarize, extract key points)
-  4. Sync to Apple Notes "Voice Memos" folder
-  5. Create Reminders for TODOs
-  6. Update INDEX.md
-- Config: config/voice-memo-sync.yaml
-- Output: memory/voice-memos/
-
-Checklist:
-[ ] New voice memos since last sync?
-[ ] Process each new recording
-[ ] Update INDEX.md with results
-HEARTBEAT
-    
-    echo "  ✅ Heartbeat task added"
-}
-
 echo "🎙️ Voice Memo Sync - Installation"
 echo "=================================="
 
 # 1. Create data directories
 echo "📁 Creating data directories..."
-mkdir -p "$DATA_DIR"/{sources,transcripts,processed,synced}
+mkdir -p "$DATA_DIR"/{icloud,sources,transcripts,processed}
 
-# 2. Create symlink
-if [ ! -L "$SKILL_DIR/data" ]; then
-    echo "🔗 Creating data symlink..."
-    ln -sf "$DATA_DIR" "$SKILL_DIR/data"
-fi
-
-# 3. Create config file
+# 2. Create config file
 if [ ! -f "$CONFIG_DIR/voice-memo-sync.yaml" ]; then
     echo "⚙️  Creating default config..."
     mkdir -p "$CONFIG_DIR"
@@ -88,16 +41,28 @@ sources:
     watch_patterns: ["*.m4a", "*.mp3", "*.mp4", "*.wav", "*.qta"]
 
 transcription:
-  priority: ["apple", "text", "summarize", "whisper-local"]
-  whisper_model: "small"
+  priority: ["apple", "text", "summarize", "funasr"]
+  funasr_model: "paraformer-zh"
+  funasr_diarize: false
+  funasr_env: "~/.funasr/venv"
   language: "auto"
 
-notes:
-  folder: "Voice Memos"
-  include_original: true
+output_targets:
+  obsidian:
+    enabled: false
+    vault_path: ""               # 首次运行时由 Agent 询问并填入
+    notes_folder: ""
+    naming: "YYYY-MM-DD-{title}.md"
+  raw_markdown:
+    enabled: true
+    path: "~/Documents/"
+
+index:
+  enabled: true
+  path: "data/voice-memos/INDEX.md"
 
 reminders:
-  enabled: true
+  enabled: false
   list: "Reminders"
 
 auto_sync:
@@ -125,36 +90,17 @@ echo "🔧 Checking dependencies..."
 for dep in ffmpeg python3; do
     command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ❌ $dep (required)"
 done
-for dep in whisper-cpp whisper yt-dlp remindctl summarize; do
-    if [ "$dep" = "whisper-cpp" ]; then
-        command -v "$dep" &>/dev/null && echo "  ✅ $dep (Metal GPU - recommended)" || echo "  ⚠️  $dep (Metal GPU - brew install whisper-cpp)"
-    else
-        command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ⚠️  $dep (optional)"
-    fi
-done
 
-# 6. Create Apple Notes folder
-echo ""
-echo "📝 Setting up Apple Notes..."
-osascript -e 'tell application "Notes" to tell account "iCloud" to if not (exists folder "Voice Memos") then make new folder with properties {name:"Voice Memos"}' 2>/dev/null || true
-echo "  ✅ Voice Memos folder ready"
-
-# 7. Configure heartbeat auto-sync
-echo ""
-if [ "$WITH_HEARTBEAT" = true ]; then
-    echo "⏰ Configuring heartbeat auto-sync..."
-    add_heartbeat_task
-elif [ -t 0 ]; then
-    echo "⏰ Enable daily auto-sync via heartbeat?"
-    echo "   New voice memos will be automatically synced at 08:00 daily."
-    read -p "   Enable? [y/N] " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        add_heartbeat_task
-    else
-        echo "   Skipped. Run './install.sh --with-heartbeat' to enable later."
-    fi
+FUNASR_ENV="${FUNASR_ENV:-${FUNASR_HOME:-$HOME/.funasr}/venv}"
+if [ -x "$FUNASR_ENV/bin/python3" ] && "$FUNASR_ENV/bin/python3" -c "import funasr" 2>/dev/null; then
+    echo "  ✅ FunASR (Paraformer + VAD + PUNC + cam++)"
+else
+    echo "  ⚠️  FunASR not found — run setup script to install"
 fi
+
+for dep in yt-dlp remindctl summarize; do
+    command -v "$dep" &>/dev/null && echo "  ✅ $dep" || echo "  ⚠️  $dep (optional)"
+done
 
 echo ""
 echo "✅ Installation complete!"
