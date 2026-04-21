@@ -107,7 +107,37 @@ bash ~/.agents/skills/voice-memo-sync/scripts/setup-funasr.sh --skip-models
 bash ~/.agents/skills/voice-memo-sync/scripts/install.sh
 ```
 
-**第五步：询问用户 Obsidian 配置（重要）**
+**第五步：引导用户开启 iCloud 语音备忘录同步（重要）**
+
+主动告知用户：
+> "✅ Skill 默认已配置好 iCloud 同步路径，无需额外设置。
+> 
+> 你只需在 iPhone 上开启 iCloud 语音备忘录：
+> **设置 → 你的姓名 → iCloud → 语音备忘录 → 打开**
+> 
+> 开启后，iPhone 上的语音备忘录会自动同步到 Mac，skill 会从以下默认路径读取：
+> - 📁 系统语音备忘录：`~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/`（需要完全磁盘访问权限）
+> - ☁️ iCloud Drive：`~/Library/Mobile Documents/com~apple~CloudDocs/Recordings`（无需额外权限）"
+
+询问用户权限状态：
+> "是否已授予终端/应用完全磁盘访问权限？如果没有，可在：
+> **系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加 Terminal（或你使用的终端应用）**"
+
+验证默认路径是否可访问：
+```bash
+# 检查两个默认路径是否存在
+ls ~/Library/Group\ Containers/group.com.apple.VoiceMemos.shared/Recordings/ 2>/dev/null \
+    && echo "✅ 系统语音备忘录路径可访问" || echo "⚠️  系统路径不可访问（可能需要完全磁盘访问权限）"
+
+ls ~/Library/Mobile\ Documents/com\~apple\~CloudDocs/Recordings/ 2>/dev/null \
+    && echo "✅ iCloud Drive 路径可访问" || echo "⚠️  iCloud Drive 路径不存在（可能尚未同步或路径不同）"
+```
+
+> 💡 **无需手动修改配置**：`install.sh` 生成的默认配置已包含这两个路径，skill 会自动扫描并复制新文件到 `~/.voice-memo-sync/data/voice-memos/icloud/` 工作目录后处理。
+> 
+> 如果用户的录音存放在其他 iCloud Drive 子目录，引导用户编辑 `~/.voice-memo-sync/config/voice-memo-sync.yaml` 的 `sources.icloud.paths` 字段添加自定义路径。
+
+**第五步 B：询问用户 Obsidian 配置（可选）**
 
 主动询问：
 > "是否要配置 Obsidian 输出？如果有 Obsidian，笔记可以自动写入你的 vault。"
