@@ -61,7 +61,29 @@ bash ~/.agents/skills/voice-memo-sync/scripts/first-run.sh --check
 > - `2` = 依赖全部就绪，只需运行 `--finish` 完成激活
 > - `1` = 有依赖未安装，需执行第四步
 
-**第三步：根据检查结果决策**
+**第三步：提前检查磁盘访问权限（必须在安装前确认）**
+
+执行以下命令检查两个语音备忘录路径的可访问性：
+
+```bash
+ls ~/Library/Group\ Containers/group.com.apple.VoiceMemos.shared/Recordings/ 2>/dev/null \
+    && echo "✅ 系统语音备忘录路径可访问" || echo "⚠️  系统路径不可访问"
+
+ls ~/Library/Mobile\ Documents/com\~apple\~CloudDocs/Recordings/ 2>/dev/null \
+    && echo "✅ iCloud Drive 路径可访问" || echo "⚠️  iCloud Drive 路径不存在"
+```
+
+- 如果两个路径**均不可访问**：主动引导用户授权，说明：
+  > "需要先授予完全磁盘访问权限才能读取语音备忘录：
+  > **系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加 Terminal（或你使用的终端应用）**
+  > 
+  > 授权完成后请告诉我，我会立即继续安装。"
+  
+  等用户回复授权完成后，**立即重新执行上面的路径检查**确认可访问，然后继续。
+
+- 如果至少有一个路径可访问：直接继续下一步。
+
+**第四步：根据 --check 结果决策**
 
 - 如果 ffmpeg **未安装**：告知需要先安装 Homebrew 依赖，执行 4a
 - 如果 FunASR **未安装**：
@@ -70,20 +92,20 @@ bash ~/.agents/skills/voice-memo-sync/scripts/first-run.sh --check
   - 如果用户**同意**：执行 4b 安装 FunASR
   - 如果用户**拒绝**：说明受限情况后继续执行 4c：
     > "好的，已跳过 FunASR。请注意：没有 FunASR 后，skill 只能处理 iPhone 语音备忘录原生格式（.qta），无法转录普通 .m4a/.mp3 音频或视频链接。你可以随时运行 `setup-funasr.sh` 补装。"
-- 如果 `--check` 返回退出码 2（依赖全部就绪，只差激活）：直接跳到第六步执行 `--finish`
+- 如果 `--check` 返回退出码 2（依赖全部就绪，只差激活）：直接跳到第八步执行 `--finish`
 - 如果 `--check` 返回退出码 0（全部就绪已激活）：安装已完成，无需操作
 
-**第四步：执行自动化安装（非交互式，Agent 主导）**
+**第五步：执行自动化安装（非交互式，Agent 主导）**
 
 按以下顺序执行，每步完成后向用户汇报：
 
 ```bash
-# 4a. 安装 ffmpeg（如果缺少）
+# 5a. 安装 ffmpeg（如果缺少）
 brew install ffmpeg
 ```
 
 ```bash
-# 4b. 安装 FunASR（根据第三步决策选择对应命令）
+# 5b. 安装 FunASR（根据第四步决策选择对应命令）
 
 # ── 情况 A：全新机器，从零安装 ──
 bash ~/.agents/skills/voice-memo-sync/scripts/setup-funasr.sh
@@ -103,11 +125,11 @@ bash ~/.agents/skills/voice-memo-sync/scripts/setup-funasr.sh --skip-models
 ```
 
 ```bash
-# 4c. 初始化数据目录和配置
+# 5c. 初始化数据目录和配置
 bash ~/.agents/skills/voice-memo-sync/scripts/install.sh
 ```
 
-**第五步：引导用户开启 iCloud 语音备忘录同步（重要）**
+**第六步：引导用户开启 iCloud 语音备忘录同步**
 
 主动告知用户：
 > "✅ Skill 默认已配置好 iCloud 同步路径，无需额外设置。
@@ -116,35 +138,25 @@ bash ~/.agents/skills/voice-memo-sync/scripts/install.sh
 > **设置 → 你的姓名 → iCloud → 语音备忘录 → 打开**
 > 
 > 开启后，iPhone 上的语音备忘录会自动同步到 Mac，skill 会从以下默认路径读取：
-> - 📁 系统语音备忘录：`~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/`（需要完全磁盘访问权限）
-> - ☁️ iCloud Drive：`~/Library/Mobile Documents/com~apple~CloudDocs/Recordings`（无需额外权限）"
+> - 📁 系统语音备忘录：`~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/`
+> - ☁️ iCloud Drive：`~/Library/Mobile Documents/com~apple~CloudDocs/Recordings`"
 
-询问用户权限状态：
-> "是否已授予终端/应用完全磁盘访问权限？如果没有，可在：
-> **系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加 Terminal（或你使用的终端应用）**"
+> 💡 如果用户的录音存放在其他 iCloud Drive 子目录，引导用户编辑 `~/.voice-memo-sync/config/voice-memo-sync.yaml` 的 `sources.icloud.paths` 字段添加自定义路径。
 
-验证默认路径是否可访问：
+**第七步：配置 Obsidian 输出（可选）**
+
+先自动探测常见 vault 位置：
 ```bash
-# 检查两个默认路径是否存在
-ls ~/Library/Group\ Containers/group.com.apple.VoiceMemos.shared/Recordings/ 2>/dev/null \
-    && echo "✅ 系统语音备忘录路径可访问" || echo "⚠️  系统路径不可访问（可能需要完全磁盘访问权限）"
-
-ls ~/Library/Mobile\ Documents/com\~apple\~CloudDocs/Recordings/ 2>/dev/null \
-    && echo "✅ iCloud Drive 路径可访问" || echo "⚠️  iCloud Drive 路径不存在（可能尚未同步或路径不同）"
+find ~/Documents -maxdepth 3 -name ".obsidian" -type d 2>/dev/null | head -5
 ```
 
-> 💡 **无需手动修改配置**：`install.sh` 生成的默认配置已包含这两个路径，skill 会自动扫描并复制新文件到 `~/.voice-memo-sync/data/voice-memos/icloud/` 工作目录后处理。
-> 
-> 如果用户的录音存放在其他 iCloud Drive 子目录，引导用户编辑 `~/.voice-memo-sync/config/voice-memo-sync.yaml` 的 `sources.icloud.paths` 字段添加自定义路径。
+根据探测结果询问：
+- 如果**找到候选 vault**：询问用户「检测到 Obsidian vault：`<检测到的路径>`，是否用这个路径输出笔记？」
+- 如果**未找到**：询问「是否要配置 Obsidian 输出？如有，请告诉我 vault 路径。」
+- 如果用户**不需要**：跳过此步继续。
 
-**第五步 B：询问用户 Obsidian 配置（可选）**
-
-主动询问：
-> "是否要配置 Obsidian 输出？如果有 Obsidian，笔记可以自动写入你的 vault。"
-
-如果用户提供了 vault 路径，执行：
+用户确认路径后，执行：
 ```bash
-# 示例：用户提供了 /Users/xxx/Documents/MyNotes
 VAULT="/Users/xxx/Documents/MyNotes"  # 替换为用户实际路径
 CONFIG=~/.voice-memo-sync/config/voice-memo-sync.yaml
 sed -i '' \
@@ -152,9 +164,10 @@ sed -i '' \
         s|enabled: false|enabled: true|
         s|vault_path: ""|vault_path: "'"$VAULT"'"|
     }' "$CONFIG"
+echo "✅ Obsidian vault 已配置：$VAULT"
 ```
 
-**第六步：激活正式 SKILL.md**
+**第八步：激活正式 SKILL.md**
 
 所有步骤完成后，执行：
 
@@ -196,7 +209,7 @@ bash ~/.agents/skills/voice-memo-sync/scripts/install.sh
 - `~/.voice-memo-sync/config/voice-memo-sync.yaml`
 - `~/.voice-memo-sync/data/voice-memos/{icloud,sources,transcripts,processed}/`
 
-### 第四步：配置 Obsidian 输出（可选）
+### 第四步：（可选）配置 Obsidian 输出
 
 编辑 `~/.voice-memo-sync/config/voice-memo-sync.yaml`：
 
@@ -209,7 +222,7 @@ output_targets:
     naming: "YYYY-MM-DD-{title}.md"
 ```
 
-### 第五步：（可选）设置 launchd 全自动同步
+### 第五步：（可选）launchd 全自动同步
 
 ```bash
 PLIST=~/.agents/skills/voice-memo-sync/scripts/com.voice-memo-sync.plist
@@ -220,6 +233,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.voice-memo-sync.plis
 iPhone：**设置 → 你的姓名 → iCloud → 语音备忘录 → 开启**
 
 ### 第六步：激活正式 skill
+
 
 ```bash
 bash ~/.agents/skills/voice-memo-sync/scripts/first-run.sh --finish
